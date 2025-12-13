@@ -1,0 +1,47 @@
+name: Build Tailscale Multicall (ARM soft-float, no NEON/FPU)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Install UPX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y upx
+
+      - name: Build soft-float multicall
+        run: |
+          mkdir -p build
+          export GOOS=linux
+          export GOARCH=arm
+          export GOARM=5      # ❗ FPU 없을 때 필수
+
+          go build -trimpath \
+            -tags ts_include_cli \
+            -ldflags="-s -w" \
+            -o build/tailscale-multicall \
+            ./cmd/tailscaled
+
+      - name: Strip
+        run: strip build/tailscale-multicall || true
+
+      - name: UPX
+        run: upx --best --lzma build/tailscale-multicall
+
+      - name: Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tailscale-multicall-arm-softfloat
+          path: build/tailscale-multicall
